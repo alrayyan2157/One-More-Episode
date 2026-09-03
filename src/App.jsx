@@ -1,42 +1,117 @@
-// src/App.jsx — ONE MORE™ v3 — Hypercar Cockpit / Mission Control
+// src/App.jsx — ONE MORE™ v4 — Apple × Awwwards Premium Experience
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Activity, AlertTriangle, ChevronDown, ChevronUp,
-  Clock, Cpu, Radio, Zap,
-} from 'lucide-react';
-import StarfieldCanvas from './components/StarfieldCanvas';
-import TachometerGauge from './components/TachometerGauge';
-import RegretGraph from './components/RegretGraph';
-import TransmissionConsole from './components/TransmissionConsole';
+import { AlertTriangle, Zap } from 'lucide-react';
+import CustomCursor     from './components/CustomCursor';
+import AmbientBackground from './components/AmbientBackground';
+import HeroSection      from './components/HeroSection';
+import CircularDial     from './components/CircularDial';
+import ScoreOdometer    from './components/ScoreOdometer';
+import RegretGraph      from './components/RegretGraph';
+import PredictionModal  from './components/PredictionModal';
 import { useRegretEngine } from './hooks/useRegretEngine';
 import { playClick, playWarpChime, playAlertHum } from './hooks/useAudio';
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
-const pad2 = (n) => String(n).padStart(2, '0');
+// ─── helpers ────────────────────────────────────────────────────────────────
+const pad2 = (n) => String(n).padStart(2,'0');
 const nowHHMM = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 
-const RUNTIME_PRESETS = [
-  { label: 'Anime',    v: 24  },
-  { label: 'Sitcom',   v: 30  },
-  { label: 'Drama',    v: 45  },
-  { label: 'Prestige', v: 58  },
-  { label: 'Feature',  v: 90  },
+const STAKES = [
+  { label:'Casual',   sub:'Weekend / Freelancer',   icon:'🌙', v:0 },
+  { label:'Normal',   sub:'Standard Workday',        icon:'💼', v:1 },
+  { label:'Critical', sub:'Exam · Pitch · 8AM CEO',  icon:'☢️', v:2 },
 ];
 
-const STAKES_OPTS = [
-  { label: 'Casual',   sub: 'Weekend / Freelancer',        icon: '🌙', v: 0 },
-  { label: 'Normal',   sub: 'Standard Workday',            icon: '💼', v: 1 },
-  { label: 'Critical', sub: 'Exam · Pitch · 8 AM CEO',     icon: '☢️', v: 2 },
+const CLIFFHANGER = [
+  { label:'None',   v:0 },
+  { label:'Mild',   v:1 },
+  { label:'Finale', sub:'Abrupt Cut to Black', v:2 },
 ];
 
-const CLIFF_OPTS = [
-  { label: 'None',          v: 0 },
-  { label: 'Mild',          v: 1 },
-  { label: 'Catastrophic',  sub: 'Season Finale', v: 2 },
-];
+// ─── Intersection Observer hook for scroll reveals ────────────────────────
+function useReveal() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) el.classList.add('visible');
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return ref;
+}
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Magnetic button hook ─────────────────────────────────────────────────
+function useMagnetic(strength = 0.3) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onMove = (e) => {
+      const rect = el.getBoundingClientRect();
+      const cx   = rect.left + rect.width  / 2;
+      const cy   = rect.top  + rect.height / 2;
+      const dx   = (e.clientX - cx) * strength;
+      const dy   = (e.clientY - cy) * strength;
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+    };
+    const onLeave = () => { el.style.transform = ''; };
+    el.addEventListener('mousemove', onMove);
+    el.addEventListener('mouseleave', onLeave);
+    return () => {
+      el.removeEventListener('mousemove', onMove);
+      el.removeEventListener('mouseleave', onLeave);
+    };
+  }, [strength]);
+  return ref;
+}
+
+// ─── Bento Card with 3D tilt + glow border ────────────────────────────────
+function BentoCard({ children, style, className = '', delay = 0 }) {
+  const ref     = useReveal();
+  const cardRef = useRef(null);
+
+  const handleMove = (e) => {
+    const el   = cardRef.current;
+    const rect = el.getBoundingClientRect();
+    const mx   = ((e.clientX - rect.left) / rect.width)  * 100;
+    const my   = ((e.clientY - rect.top)  / rect.height) * 100;
+    const rotX = ((e.clientY - rect.top  - rect.height/2) / rect.height) * -8;
+    const rotY = ((e.clientX - rect.left - rect.width /2) / rect.width ) *  8;
+    el.style.transform = `perspective(600px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateZ(4px)`;
+    el.style.setProperty('--mx', `${mx}%`);
+    el.style.setProperty('--my', `${my}%`);
+  };
+
+  const handleLeave = () => {
+    cardRef.current.style.transform = '';
+  };
+
+  return (
+    <div
+      ref={ref}
+      className={`reveal ${className}`}
+      style={{ transitionDelay: `${delay}ms`, ...style }}
+    >
+      <div
+        ref={cardRef}
+        className="bento-card"
+        style={{ height: '100%' }}
+        onMouseMove={handleMove}
+        onMouseLeave={handleLeave}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main App ─────────────────────────────────────────────────────────────
 export default function App() {
   const [episodes,    setEpisodes]    = useState(2);
   const [runtime,     setRuntime]     = useState(45);
@@ -44,523 +119,364 @@ export default function App() {
   const [stakes,      setStakes]      = useState(1);
   const [cliffhanger, setCliffhanger] = useState(0);
   const [now,         setNow]         = useState(new Date());
-  const [warpActive,  setWarpActive]  = useState(false);
-  const [shaking,     setShaking]     = useState(false);
-  const [strobe,      setStrobe]      = useState(false);
-  const [remLiquidated, setRemLiquidated] = useState(41209.0);
+  const [showModal,   setShowModal]   = useState(false);
+  const [ripple,      setRipple]      = useState(false);
+  const [glitching,   setGlitching]   = useState(false);
+  const ctaRef = useMagnetic(0.28);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    const t = setInterval(() => setRemLiquidated(v => +(v + 0.004).toFixed(3)), 200);
-    return () => clearInterval(t);
-  }, []);
+  const { finalRegret, sleepHours, sleepNeg, daysOffset, finishTime, bingeMinutes, accentColor, statusLabel, txTier }
+    = useRegretEngine({ episodes, runtime, wakeUpTime, stakes, cliffhanger, now });
 
-  const {
-    finalRegret, sleepHours, sleepNeg, daysOffset,
-    finishTime, bingeMinutes, accentColor, statusLabel, txTier,
-  } = useRegretEngine({ episodes, runtime, wakeUpTime, stakes, cliffhanger, now });
-
-  // Alert hum on crossing 85%
+  // Alert hum at 85%
   const prevRegRef = useRef(finalRegret);
   useEffect(() => {
     if (prevRegRef.current <= 85 && finalRegret > 85) playAlertHum();
     prevRegRef.current = finalRegret;
   }, [finalRegret]);
 
-  const triggerWarp = useCallback(() => {
-    setWarpActive(true);
-    setTimeout(() => setWarpActive(false), 1400);
+  const handleCTA = useCallback(() => {
+    // Glitch text
+    setGlitching(true);
+    setTimeout(() => setGlitching(false), 400);
+    // Ripple
+    setRipple(true);
+    setTimeout(() => setRipple(false), 1000);
+    // Audio
+    playWarpChime();
+    // Increment
+    setEpisodes(e => e + 1);
+    // Open modal after short delay
+    setTimeout(() => setShowModal(true), 500);
   }, []);
 
-  const handleCTA = useCallback(() => {
-    playWarpChime();
-    setEpisodes(e => e + 1);
-    setShaking(true);
-    setStrobe(true);
-    triggerWarp();
-    setTimeout(() => setShaking(false), 450);
-    setTimeout(() => setStrobe(false), 700);
-  }, [triggerWarp]);
-
-  const finishStr = finishTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-  const sleepLabel = sleepNeg
-    ? `−${Math.abs(sleepHours).toFixed(1)}h (NEGATIVE)`
-    : `${sleepHours.toFixed(1)}h`;
+  const runtimePct = ((runtime - 10) / 170) * 100;
+  const finishStr  = finishTime.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:true });
+  const sleepLabel = sleepNeg ? `−${Math.abs(sleepHours).toFixed(1)}h` : `${sleepHours.toFixed(1)}h`;
   const sleepColor = sleepNeg ? '#FF2A54' : sleepHours < 5 ? '#FF6B35' : sleepHours < 7 ? '#F5A623' : '#00F5D4';
-  const runtimePct  = ((runtime - 10) / 170) * 100;
 
   return (
-    <div
-      className={shaking ? 'shaking' : ''}
-      style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden' }}
-    >
-      {/* Canvas background */}
-      <StarfieldCanvas warpActive={warpActive} />
-
-      {/* Strobe flash */}
-      {strobe && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 60, pointerEvents: 'none',
-          background: 'radial-gradient(ellipse at center, rgba(255,42,84,0.12) 0%, transparent 70%)',
-          animation: 'regStb 0.12s ease-in-out 5',
-        }}>
-          <style>{`@keyframes regStb{0%,100%{opacity:1}50%{opacity:0}}`}</style>
-        </div>
+    <>
+      <CustomCursor />
+      {/* Ripple */}
+      {ripple && <div className="ripple" />}
+      {/* Modal */}
+      {showModal && (
+        <PredictionModal
+          txTier={txTier}
+          finalRegret={finalRegret}
+          sleepHours={sleepHours}
+          sleepNeg={sleepNeg}
+          onClose={() => setShowModal(false)}
+        />
       )}
 
-      {/* ── Mobile floating HUD ─────────────────────────────────────────────── */}
-      <div className="lg:hidden" style={{
-        position: 'sticky', top: 0, zIndex: 40,
-        background: 'rgba(7,8,11,0.88)',
-        backdropFilter: 'blur(20px)',
-        borderBottom: `1px solid ${accentColor}30`,
-        padding: '0.6rem 1rem',
-        display: 'flex', alignItems: 'center', gap: '1rem',
-      }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: accentColor }}>ONE MORE™</div>
-        <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 900, color: accentColor, lineHeight: 1 }}>
-            {finalRegret.toFixed(3)}%
-          </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>
-            {statusLabel}
-          </div>
+      <div style={{ position:'relative', minHeight:'100vh', background:'#000' }}>
+        {/* Ambient orbs */}
+        <AmbientBackground />
+
+        {/* ── HERO ── */}
+        <div style={{ position:'relative', zIndex:1 }}>
+          <HeroSection />
         </div>
-        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: accentColor,
-          boxShadow: `0 0 8px ${accentColor}`, animation: 'blink-led 1.8s ease-in-out infinite' }} />
-      </div>
 
-      {/* ── Page content ─────────────────────────────────────────────────────── */}
-      <div style={{
-        position: 'relative', zIndex: 10,
-        maxWidth: 1440, margin: '0 auto',
-        padding: '1.25rem 1.5rem',
-        display: 'flex', flexDirection: 'column',
-        height: '100vh', boxSizing: 'border-box',
-      }}>
-
-        {/* ── HEADER ── */}
-        <header style={{
-          display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
-          background: 'rgba(14,17,30,0.55)',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 12,
-          padding: '0.7rem 1.2rem',
-          marginBottom: '1rem',
-          flexShrink: 0,
+        {/* ── CALCULATOR ── */}
+        <section id="calculator" style={{
+          position:'relative', zIndex:1,
+          maxWidth:1320, margin:'0 auto',
+          padding:'6rem 2rem 8rem',
         }}>
-          {/* Brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Activity size={20} color={accentColor} style={{ filter: `drop-shadow(0 0 5px ${accentColor})` }} />
-            <div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: accentColor, letterSpacing: '-0.02em' }}>
-                ONE MORE™
+
+          {/* Section heading */}
+          <div style={{ marginBottom:'4rem' }}>
+            <div className="label-micro" style={{ marginBottom:'1rem' }}>Sleep Regret Engine · v4.0</div>
+            <h2 className="text-headline" style={{ maxWidth:520 }}>
+              Configure your trajectory.<br/>
+              <span style={{ color:'rgba(255,255,255,0.4)' }}>The math doesn't care.</span>
+            </h2>
+          </div>
+
+          {/* ─── BENTO GRID ─────────────────────────────────────────────── */}
+          <div className="bento-grid">
+
+            {/* Score hero card (spans 7 cols) */}
+            <BentoCard
+              delay={0}
+              className=""
+              style={{ gridColumn:'span 7' }}
+            >
+              <div className="label-micro" style={{ marginBottom:'1rem' }}>Regret Score Matrix</div>
+              <ScoreOdometer value={finalRegret} accentColor={accentColor} />
+              <div style={{
+                fontFamily:'var(--font)', fontSize:11, fontWeight:600,
+                letterSpacing:'0.18em', textTransform:'uppercase',
+                color:'rgba(255,255,255,0.3)', marginTop:10,
+              }}>
+                {finalRegret >= 88 ? 'REDLINE: CRITICAL COGNITIVE BLOWOUT' : `STATUS: ${statusLabel}`}
               </div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, letterSpacing: '0.16em', color: `${accentColor}80`, textTransform: 'uppercase' }}>
-                // SLEEP TRAJECTORY RADAR
+
+              {/* Progress bar */}
+              <div className="progress-track" style={{ marginTop:'2rem' }}>
+                <div className="progress-fill" style={{
+                  width:`${finalRegret}%`,
+                  background:`linear-gradient(to right, #00F5D4 0%, #F5A623 50%, #FF2A54 100%)`,
+                }}/>
               </div>
-            </div>
-            <div style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: accentColor,
-              boxShadow: `0 0 8px ${accentColor}`, animation: 'blink-led 1.8s ease-in-out infinite', marginLeft: 4 }} />
-          </div>
 
-          {/* Status pills */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginLeft: 8 }}>
-            {[
-              { label: 'ORBITAL DECAY: ACCELERATING',       color: accentColor },
-              { label: `REM LIQUIDATED: ${remLiquidated.toFixed(3)} HRS`, color: '#F5A623' },
-              { label: `REGRET INDEX: ${finalRegret.toFixed(1)}%`,       color: finalRegret > 75 ? '#FF2A54' : '#F5A623' },
-            ].map(({ label, color }) => (
-              <span key={label} style={{
-                fontFamily: 'var(--font-mono)', fontSize: 10,
-                padding: '2px 8px', borderRadius: 5,
-                border: `1px solid ${color}40`,
-                color, background: `${color}0c`,
-              }}>{label}</span>
-            ))}
-          </div>
+              {/* Stat strip */}
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, marginTop:'2rem' }}>
+                {[
+                  { l:'Binge',  v:`${bingeMinutes}m`, c:accentColor },
+                  { l:'Finish', v:finishStr,           c:'#F5A623' },
+                  { l:'Sleep',  v:sleepLabel,          c:sleepColor },
+                ].map(s=>(
+                  <div key={s.l}>
+                    <div className="label-micro" style={{marginBottom:6}}>{s.l}</div>
+                    <div className="stat-value" style={{ color:s.c, fontSize:'1.5rem' }}>{s.v}</div>
+                  </div>
+                ))}
+              </div>
+            </BentoCard>
 
-          <div style={{
-            marginLeft: 'auto',
-            fontFamily: 'var(--font-mono)', fontSize: 8,
-            color: 'rgba(255,255,255,0.28)', textAlign: 'right',
-            letterSpacing: '0.1em', textTransform: 'uppercase',
-            lineHeight: 1.5, display: 'none',
-          }} className="hidden lg:block">
-            "We don't prevent bad decisions.<br/>We quantify them."
-          </div>
-        </header>
+            {/* Wake-up dial (5 cols) */}
+            <BentoCard delay={80} style={{ gridColumn:'span 5' }}>
+              <div className="label-micro" style={{ marginBottom:'1.5rem' }}>Alarm Ring Time</div>
+              <div style={{ display:'flex', justifyContent:'center' }}>
+                <CircularDial
+                  value={wakeUpTime}
+                  onChange={(v) => { setWakeUpTime(v); playClick(); }}
+                />
+              </div>
+            </BentoCard>
 
-        {/* ── TWO-COLUMN COCKPIT ── */}
-        <div style={{
-          flex: 1, display: 'grid',
-          gridTemplateColumns: '1fr',
-          gap: '1rem',
-          minHeight: 0,
-        }} className="lg-cockpit-grid">
-
-          {/* ═══ LEFT — MISSION INPUTS ═════════════════════════════════════════ */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto' }} className="left-panel">
-
-            {/* Episode count */}
-            <Card accentColor={accentColor} label="Episode Count" icon={<Cpu size={12} color={accentColor} />}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <StepBtn onClick={() => { setEpisodes(e => Math.max(1, e - 1)); playClick(); }}><ChevronDown size={16} /></StepBtn>
-                <div style={{ flex: 1, textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 34, fontWeight: 900, color: accentColor, lineHeight: 1 }}>
+            {/* Episode count (4 cols) */}
+            <BentoCard delay={100} style={{ gridColumn:'span 4' }}>
+              <div className="label-micro" style={{ marginBottom:'1.25rem' }}>Episode Count</div>
+              <div style={{
+                display:'flex', alignItems:'center', gap:16, marginBottom:16,
+              }}>
+                <button
+                  onClick={() => { setEpisodes(e=>Math.max(1,e-1)); playClick(); }}
+                  style={{
+                    width:44, height:44, borderRadius:'50%',
+                    background:'rgba(255,255,255,0.05)',
+                    border:'1px solid rgba(255,255,255,0.1)',
+                    color:'#fff', fontSize:20, display:'flex',
+                    alignItems:'center', justifyContent:'center',
+                    cursor:'none', transition:'background .15s',
+                  }}
+                >−</button>
+                <div style={{
+                  flex:1, textAlign:'center',
+                  fontSize:'clamp(3rem,7vw,5rem)',
+                  fontWeight:900, letterSpacing:'-0.05em',
+                  color:accentColor, lineHeight:1,
+                  transition:'color 0.4s',
+                }}>
                   {episodes}
                 </div>
-                <StepBtn onClick={() => { setEpisodes(e => e + 1); playClick(); }}><ChevronUp size={16} /></StepBtn>
+                <button
+                  onClick={() => { setEpisodes(e=>e+1); playClick(); }}
+                  style={{
+                    width:44, height:44, borderRadius:'50%',
+                    background:'rgba(255,255,255,0.05)',
+                    border:'1px solid rgba(255,255,255,0.1)',
+                    color:'#fff', fontSize:20, display:'flex',
+                    alignItems:'center', justifyContent:'center',
+                    cursor:'none', transition:'background .15s',
+                  }}
+                >+</button>
               </div>
-              <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                {[1, 2, 3, 5].map(p => (
-                  <PresetBtn key={p} active={episodes === p} color={accentColor}
-                    onClick={() => { setEpisodes(p); playClick(); }}>{p}</PresetBtn>
-                ))}
-                <PresetBtn
-                  active={episodes >= 10}
-                  color="#FF2A54"
-                  onClick={() => { setEpisodes(99); playClick(); playAlertHum(); }}
-                  style={{ flex: 1.5 }}
-                >☠ GOD HELP ME</PresetBtn>
+              {/* Episode slider */}
+              <input
+                type="range" min={1} max={20} step={1} value={episodes}
+                onChange={e => { setEpisodes(+e.target.value); }}
+                className="premium-slider"
+                style={{
+                  background:`linear-gradient(to right, ${accentColor} 0%, ${accentColor} ${((episodes-1)/19*100).toFixed(0)}%, rgba(255,255,255,0.1) ${((episodes-1)/19*100).toFixed(0)}%)`,
+                }}
+              />
+              <div style={{ display:'flex', justifyContent:'space-between', marginTop:6 }}>
+                <span style={{ fontSize:10, color:'rgba(255,255,255,0.25)' }}>1</span>
+                <span style={{ fontSize:10, color:'rgba(255,255,255,0.25)' }}>20</span>
               </div>
-            </Card>
+            </BentoCard>
 
-            {/* Runtime */}
-            <Card accentColor={accentColor} label={`Runtime — ${runtime}m`}>
+            {/* Runtime slider (8 cols) */}
+            <BentoCard delay={130} style={{ gridColumn:'span 8' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
+                <div className="label-micro">Episode Runtime</div>
+                <div style={{ fontSize:'2.4rem', fontWeight:900, letterSpacing:'-0.04em', color:accentColor }}>
+                  {runtime}<span style={{ fontSize:'1.2rem', opacity:0.45, marginLeft:3 }}>min</span>
+                </div>
+              </div>
               <input
                 type="range" min={10} max={180} step={1} value={runtime}
                 onChange={e => setRuntime(+e.target.value)}
-                className="slider-neon"
-                style={{ '--pct': `${runtimePct.toFixed(1)}%`, width: '100%', marginBottom: 10 }}
+                className="premium-slider"
+                style={{
+                  background:`linear-gradient(to right, #fff 0%, #fff ${runtimePct.toFixed(1)}%, rgba(255,255,255,0.1) ${runtimePct.toFixed(1)}%)`,
+                  marginBottom:14,
+                }}
               />
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                {RUNTIME_PRESETS.map(p => (
-                  <PresetBtn key={p.v} active={runtime === p.v} color={accentColor}
-                    onClick={() => { setRuntime(p.v); playClick(); }}>
-                    {p.label} · {p.v}m
-                  </PresetBtn>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {[
+                  { label: 'Anime', value: 24 },
+                  { label: 'Sitcom', value: 30 },
+                  { label: 'Drama', value: 45 },
+                  { label: 'Prestige', value: 58 },
+                  { label: 'Film', value: 90 },
+                ].map(({ label, value }) => (
+                    <button key={value}
+                      onClick={() => { setRuntime(value); playClick(); }}
+                      style={{
+                        padding:'5px 12px', borderRadius:8,
+                        background: runtime===value ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)',
+                        border:`1px solid ${runtime===value ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.07)'}`,
+                        color: runtime===value ? '#fff' : 'rgba(255,255,255,0.4)',
+                        fontSize:11, fontWeight:600, cursor:'none', transition:'all .15s',
+                      }}
+                    >{label} · {value}m</button>
                 ))}
               </div>
-            </Card>
+            </BentoCard>
 
-            {/* Time anchors */}
-            <Card accentColor={accentColor} label="Temporal Anchors" icon={<Clock size={12} color={accentColor} />}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <div style={microLabel}>Now</div>
-                  <div style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700,
-                    textAlign: 'center', padding: '8px',
-                    background: 'rgba(0,0,0,0.3)', borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.08)',
-                  }}>
-                    {nowHHMM(now)}
-                    <span style={{ opacity: 0.35, fontSize: 11, marginLeft: 2 }}>:{pad2(now.getSeconds())}</span>
-                  </div>
-                </div>
-                <div>
-                  <div style={microLabel}>Alarm</div>
-                  <input type="time" value={wakeUpTime}
-                    onChange={e => { setWakeUpTime(e.target.value); playClick(); }} />
-                </div>
-              </div>
-            </Card>
-
-            {/* Stakes */}
-            <Card accentColor={accentColor} label="Tomorrow Stakes">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-                {STAKES_OPTS.map(o => (
+            {/* Stakes (6 cols) */}
+            <BentoCard delay={150} style={{ gridColumn:'span 6' }}>
+              <div className="label-micro" style={{ marginBottom:'1.25rem' }}>Tomorrow Stakes</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {STAKES.map(o=>(
                   <button key={o.v}
                     onClick={() => { setStakes(o.v); playClick(); }}
                     style={{
-                      background: stakes === o.v ? `${accentColor}12` : 'rgba(255,255,255,0.02)',
-                      border: `1px solid ${stakes === o.v ? accentColor : 'rgba(255,255,255,0.08)'}`,
-                      borderRadius: 10, padding: '10px 6px',
-                      cursor: 'pointer', transition: 'all .18s',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                      boxShadow: stakes === o.v ? `0 0 14px ${accentColor}20` : 'none',
-                    }}>
-                    <span style={{ fontSize: 18 }}>{o.icon}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
-                      color: stakes === o.v ? accentColor : 'rgba(255,255,255,0.55)' }}>{o.label}</span>
-                    <span style={{ ...microLabel, fontSize: 7, color: 'rgba(255,255,255,0.3)' }}>{o.sub}</span>
+                      display:'flex', alignItems:'center', gap:12,
+                      padding:'12px 14px', borderRadius:12,
+                      background: stakes===o.v ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.02)',
+                      border:`1px solid ${stakes===o.v ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)'}`,
+                      cursor:'none', transition:'all .2s', textAlign:'left',
+                    }}
+                  >
+                    <span style={{ fontSize:20 }}>{o.icon}</span>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:700, color: stakes===o.v ? '#fff' : 'rgba(255,255,255,0.55)' }}>{o.label}</div>
+                      <div style={{ fontSize:10, color:'rgba(255,255,255,0.28)', marginTop:1 }}>{o.sub}</div>
+                    </div>
+                    {stakes===o.v && (
+                      <div style={{
+                        marginLeft:'auto', width:7, height:7, borderRadius:'50%',
+                        background:accentColor, boxShadow:`0 0 8px ${accentColor}`,
+                      }}/>
+                    )}
                   </button>
                 ))}
               </div>
-            </Card>
+            </BentoCard>
 
-            {/* Cliffhanger */}
-            <Card accentColor={accentColor} label="Cliffhanger Intensity" icon={<AlertTriangle size={12} color={cliffhanger === 2 ? '#FF2A54' : accentColor} />}>
-              <div style={{ display: 'flex', background: 'rgba(0,0,0,0.28)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, overflow: 'hidden' }}>
-                {CLIFF_OPTS.map((o, i) => (
+            {/* Cliffhanger (6 cols) */}
+            <BentoCard delay={180} style={{ gridColumn:'span 6' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:'1.25rem' }}>
+                <div className="label-micro">Cliffhanger Intensity</div>
+                {cliffhanger===2 && <AlertTriangle size={11} color="#FF2A54"/>}
+              </div>
+              <div className="seg-group">
+                {CLIFFHANGER.map(o=>(
                   <button key={o.v}
-                    onClick={() => { setCliffhanger(o.v); playClick(); if (o.v === 2) playAlertHum(); }}
-                    style={{
-                      flex: 1, padding: '10px 4px',
-                      background: cliffhanger === o.v
-                        ? (o.v === 2 ? 'rgba(255,42,84,0.12)' : `${accentColor}10`)
-                        : 'transparent',
-                      border: 'none',
-                      borderRight: i < CLIFF_OPTS.length - 1 ? '1px solid rgba(255,255,255,0.07)' : 'none',
-                      cursor: 'pointer', transition: 'all .18s',
-                      fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em',
-                      color: cliffhanger === o.v
-                        ? (o.v === 2 ? '#FF2A54' : accentColor)
-                        : 'rgba(255,255,255,0.35)',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                    }}>
-                    <span>{o.label}</span>
-                    {o.sub && <span style={{ fontSize: 7, opacity: 0.6 }}>{o.sub}</span>}
+                    className={`seg-option ${cliffhanger===o.v?'active':''}`}
+                    onClick={() => { setCliffhanger(o.v); playClick(); if(o.v===2) playAlertHum(); }}
+                  >
+                    <div style={{ fontWeight:700 }}>{o.label}</div>
+                    {o.sub && <div style={{ fontSize:9, opacity:.55, marginTop:1 }}>{o.sub}</div>}
                   </button>
                 ))}
               </div>
-              {cliffhanger === 2 && (
-                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FF2A54', marginTop: 6,
-                  display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <AlertTriangle size={9} /> WARNING: CATASTROPHIC NARRATIVE HOOK DETECTED
-                </p>
-              )}
-            </Card>
 
-            {/* Stat strip */}
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(3,1fr)',
-              gap: 6,
-            }}>
-              {[
-                { label: 'Binge',   value: `${bingeMinutes}m`,  color: accentColor },
-                { label: 'Finish',  value: finishStr,            color: '#F5A623' },
-                { label: 'Sleep',   value: sleepLabel,           color: sleepColor },
-              ].map(({ label, value, color }) => (
-                <div key={label} style={{
-                  background: 'rgba(14,17,30,0.55)', backdropFilter: 'blur(16px)',
-                  border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10,
-                  padding: '10px 8px', textAlign: 'center',
+              {cliffhanger===2 && (
+                <div style={{
+                  marginTop:14, padding:'10px 12px', borderRadius:10,
+                  background:'rgba(255,42,84,0.08)', border:'1px solid rgba(255,42,84,0.25)',
+                  fontSize:11, color:'#FF2A54', fontWeight:600, lineHeight:1.5,
                 }}>
-                  <div style={microLabel}>{label}</div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color, marginTop: 2 }}>{value}</div>
+                  ⚠ Catastrophic narrative hook detected. Regret coefficient elevated by 8.2%.
                 </div>
-              ))}
-            </div>
+              )}
 
-            {/* Multi-day warning */}
-            {(daysOffset > 0 || sleepNeg) && (
-              <div style={{
-                background: 'rgba(255,42,84,0.1)', border: '1px solid rgba(255,42,84,0.35)',
-                borderRadius: 8, padding: '8px 12px',
-                fontFamily: 'var(--font-mono)', fontSize: 10, color: '#FF2A54',
-                display: 'flex', alignItems: 'center', gap: 6,
-              }}>
-                <AlertTriangle size={11} />
-                {sleepNeg
-                  ? `SLEEP DEBT: ${Math.abs(sleepHours).toFixed(1)}h IN DEFICIT — YOU WILL NOT SLEEP.`
-                  : `DAY+${daysOffset} BLEED — BINGE CROSSES MIDNIGHT BOUNDARY.`}
+              {/* Current time readout */}
+              <div style={{ marginTop:'1.5rem', paddingTop:'1.5rem', borderTop:'1px solid rgba(255,255,255,0.06)' }}>
+                <div className="label-micro" style={{ marginBottom:8 }}>Current Time</div>
+                <div style={{
+                  fontFamily:'var(--font)', fontSize:'2.4rem',
+                  fontWeight:900, letterSpacing:'-0.04em',
+                  color:'rgba(255,255,255,0.85)',
+                }}>
+                  {nowHHMM(now)}
+                  <span style={{ fontSize:'1rem', opacity:.3, marginLeft:6 }}>{pad2(now.getSeconds())}</span>
+                </div>
               </div>
+            </BentoCard>
+
+            {/* Graph (12 cols) */}
+            <BentoCard delay={200} style={{ gridColumn:'span 12' }}>
+              <div className="label-micro" style={{ marginBottom:'1.5rem' }}>Predictive Trajectory Analysis</div>
+              <RegretGraph episodes={episodes} finalRegret={finalRegret} />
+            </BentoCard>
+
+            {/* Multi-day warning if needed */}
+            {(sleepNeg || daysOffset > 0) && (
+              <BentoCard delay={220} style={{ gridColumn:'span 12' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10, color:'#FF2A54' }}>
+                  <AlertTriangle size={16}/>
+                  <span style={{ fontWeight:700, fontSize:14 }}>
+                    {sleepNeg
+                      ? `SLEEP DEBT DETECTED: ${Math.abs(sleepHours).toFixed(1)}h in deficit. You will not sleep before your alarm.`
+                      : `DAY+${daysOffset} BOUNDARY CROSSED: Binge spans multiple calendar days.`}
+                  </span>
+                </div>
+              </BentoCard>
             )}
           </div>
 
-          {/* ═══ RIGHT — TELEMETRY HUD ══════════════════════════════════════════ */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflow: 'hidden' }} className="right-panel">
-
-            {/* Tachometer hero */}
-            <div style={{
-              background: 'rgba(14,17,30,0.6)', backdropFilter: 'blur(24px)',
-              border: `1px solid ${accentColor}25`,
-              borderRadius: 16,
-              padding: '1rem 1.25rem 0.5rem',
-              boxShadow: `0 0 40px ${accentColor}0a`,
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              flexShrink: 0,
-            }}>
-              {/* Panel header */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                borderBottom: '1px solid rgba(255,255,255,0.05)',
-                paddingBottom: '0.5rem', marginBottom: '0.5rem',
-                width: '100%',
-              }}>
-                <Radio size={12} color={accentColor} />
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.15em', color: `${accentColor}99`, textTransform: 'uppercase' }}>
-                  Regret Tachometer · Live Telemetry
+          {/* ─── CTA ─── */}
+          <div style={{ display:'flex', justifyContent:'center', marginTop:'5rem' }}>
+            <div ref={ctaRef} className="magnetic-wrap">
+              <button
+                onClick={handleCTA}
+                className="pill-btn cta-pill"
+                data-text="MAKE A TERRIBLE DECISION: WATCH ONE MORE"
+                style={{
+                  fontSize:'clamp(12px,1.5vw,15px)',
+                  paddingLeft:'clamp(24px,4vw,52px)',
+                  paddingRight:'clamp(24px,4vw,52px)',
+                  height:64,
+                  position:'relative',
+                }}
+              >
+                <span
+                  className={glitching ? 'glitching' : ''}
+                  data-text="MAKE A TERRIBLE DECISION: WATCH ONE MORE"
+                  style={{ position:'relative', zIndex:1, display:'flex', alignItems:'center', gap:10 }}
+                >
+                  <Zap size={17} />
+                  MAKE A TERRIBLE DECISION: WATCH ONE MORE
                 </span>
-                <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 9, padding: '2px 7px', borderRadius: 4,
-                  background: `${accentColor}18`, color: accentColor, border: `1px solid ${accentColor}30` }}>LIVE</span>
-              </div>
-
-              <TachometerGauge regret={finalRegret} accentColor={accentColor} statusLabel={statusLabel} />
-
-              {/* Big decimal readout under needle */}
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 38, fontWeight: 900, color: accentColor, letterSpacing: '-0.04em', lineHeight: 1, marginTop: '-0.5rem' }}>
-                {finalRegret.toFixed(3)}<span style={{ fontSize: 20, opacity: 0.5 }}>%</span>
-              </div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8.5, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', marginTop: 4, marginBottom: 4 }}>
-                {finalRegret >= 88 ? 'REDLINE STATE: CRITICAL COGNITIVE BLOWOUT' : `REGRET STATUS: ${statusLabel}`}
-              </div>
+              </button>
             </div>
-
-            {/* Graph */}
-            <div style={{
-              background: 'rgba(14,17,30,0.55)', backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14,
-              padding: '1rem 1.25rem',
-              flex: 1, minHeight: 0,
-            }}>
-              <RegretGraph episodes={episodes} finalRegret={finalRegret} />
-            </div>
-
-            {/* Transmission */}
-            <div style={{
-              background: 'rgba(14,17,30,0.55)', backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14,
-              padding: '0.85rem 1.1rem',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <Zap size={12} color={accentColor} />
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', color: `${accentColor}99`, textTransform: 'uppercase' }}>
-                  Tomorrow You · Encrypted Com-Link
-                </span>
-                <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4,
-                  fontFamily: 'var(--font-mono)', fontSize: 8, color: `${accentColor}80` }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: accentColor,
-                    display: 'inline-block', animation: 'blink-led 1.8s ease-in-out infinite' }} />
-                  DECRYPTING
-                </span>
-              </div>
-              <TransmissionConsole txTier={txTier} accentColor={accentColor} now={now} />
-            </div>
-
-            {/* CTA */}
-            <button
-              onClick={handleCTA}
-              style={{
-                width: '100%', padding: '1.1rem 1rem',
-                background: 'linear-gradient(135deg, rgba(255,42,84,0.14), rgba(122,0,22,0.18))',
-                border: `1px solid #FF2A54`,
-                borderRadius: 12, cursor: 'pointer',
-                fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700,
-                color: '#FF2A54', letterSpacing: '0.06em', textTransform: 'uppercase',
-                position: 'relative', overflow: 'hidden',
-                transition: 'all .22s', flexShrink: 0,
-                boxShadow: '0 0 0 0 rgba(255,42,84,0)',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,42,84,0.3), rgba(122,0,22,0.36))';
-                e.currentTarget.style.color = '#fff';
-                e.currentTarget.style.boxShadow = '0 0 30px rgba(255,42,84,0.4)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,42,84,0.14), rgba(122,0,22,0.18))';
-                e.currentTarget.style.color = '#FF2A54';
-                e.currentTarget.style.boxShadow = '0 0 0 0 rgba(255,42,84,0)';
-              }}
-            >
-              {/* Scanlines */}
-              <div style={{
-                position: 'absolute', inset: 0,
-                background: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.025) 2px,rgba(255,255,255,0.025) 4px)',
-                pointerEvents: 'none',
-              }}/>
-              {/* Pulse ring */}
-              <div style={{
-                position: 'absolute', inset: -2, border: '2px solid #FF2A54',
-                borderRadius: 13, pointerEvents: 'none',
-                animation: 'ctaPulse 2s ease-in-out infinite',
-              }}/>
-              <style>{`@keyframes ctaPulse{0%,100%{opacity:.25;transform:scale(1)}50%{opacity:.7;transform:scale(1.01)}}`}</style>
-              <span style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <Zap size={16} />
-                MAKE A TERRIBLE DECISION: WATCH ONE MORE
-              </span>
-            </button>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div style={{
-          textAlign: 'center', marginTop: '0.5rem', flexShrink: 0,
-          fontFamily: 'var(--font-mono)', fontSize: 8.5,
-          color: 'rgba(255,255,255,0.15)', letterSpacing: '0.1em',
-        }}>
-          ONE MORE™ v3.0 · SLEEP TRAJECTORY RADAR · All data is satirical and mathematically rigorous
-        </div>
+          {/* Legal */}
+          <p style={{
+            textAlign:'center', marginTop:'2rem',
+            fontSize:11, color:'rgba(255,255,255,0.18)',
+            lineHeight:1.6,
+          }}>
+            ONE MORE™ v4.0 · All data is satirical and mathematically rigorous.<br/>
+            No actual sleep scientists were consulted in the making of this application.
+          </p>
+        </section>
       </div>
-
-      <style>{`
-        @keyframes blink-led{0%,90%,100%{opacity:1}95%{opacity:.1}}
-        .shaking{animation:screen-shake .4s cubic-bezier(.36,.07,.19,.97) both}
-        @keyframes screen-shake{
-          0%,100%{transform:translate(0,0)}
-          10%,30%,50%,70%,90%{transform:translate(-5px,-2px) rotate(-.4deg)}
-          20%,40%,60%,80%{transform:translate(5px,2px) rotate(.4deg)}
-        }
-        @media(min-width:1024px){
-          .lg-cockpit-grid{grid-template-columns:5fr 7fr !important}
-          .left-panel{overflow-y:auto;padding-right:4px}
-          .right-panel{overflow:hidden}
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// ─── Sub-components ────────────────────────────────────────────────────────────
-const microLabel = {
-  fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.15em',
-  textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 4,
-};
-
-function Card({ children, accentColor, label, icon }) {
-  return (
-    <div style={{
-      background: 'rgba(14,17,30,0.55)', backdropFilter: 'blur(20px)',
-      border: '1px solid rgba(255,255,255,0.07)',
-      borderRadius: 14, padding: '0.9rem 1.1rem',
-      boxShadow: `0 0 0 1px rgba(0,0,0,0), inset 0 1px 0 rgba(255,255,255,0.03)`,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
-        borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 8 }}>
-        {icon}
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em',
-          textTransform: 'uppercase', color: `${accentColor}80` }}>{label}</span>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function StepBtn({ children, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      width: 38, height: 38, borderRadius: 8,
-      background: 'rgba(255,255,255,0.05)',
-      border: '1px solid rgba(255,255,255,0.1)',
-      color: '#fff', cursor: 'pointer', display: 'flex',
-      alignItems: 'center', justifyContent: 'center',
-      transition: 'background .15s',
-    }}
-      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-      onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-    >{children}</button>
-  );
-}
-
-function PresetBtn({ children, active, color = '#00F5D4', onClick, style: extraStyle }) {
-  return (
-    <button onClick={onClick} style={{
-      flex: 1, padding: '5px 4px', borderRadius: 6,
-      background: active ? `${color}12` : 'transparent',
-      border: `1px solid ${active ? color : 'rgba(255,255,255,0.1)'}`,
-      color: active ? color : 'rgba(255,255,255,0.4)',
-      fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer',
-      transition: 'all .16s', ...extraStyle,
-    }}
-      onMouseEnter={e => e.currentTarget.style.borderColor = color}
-      onMouseLeave={e => e.currentTarget.style.borderColor = active ? color : 'rgba(255,255,255,0.1)'}
-    >{children}</button>
+    </>
   );
 }
