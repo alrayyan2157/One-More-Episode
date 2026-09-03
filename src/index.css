@@ -1,19 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+
 :root {
-  --bg-color: #0f172a;
-  --card-bg: #1e293b;
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --border: #334155;
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
+  --deep-void: #07080B;
+  --glass-surface: #0E1117;
+  --glass-highlight: rgba(255, 255, 255, 0.03);
+  --border-stroke: #1F2430;
+  
+  --safe-cyan: #00F5D4;
+  --caution-amber: #F5A623;
+  --critical-crimson: #FF2A54;
+  --blood-red: #7A0016;
+
+  --text-primary: #FFFFFF;
+  --text-secondary: #8B949E;
+  --text-muted: #484F58;
+
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'Space Mono', monospace;
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background-color: var(--bg-color);
-  color: var(--text-main);
-  display: flex;
-  justify-content: center;
+  font-family: var(--font-sans);
+  background-color: var(--deep-void);
+  color: var(--text-primary);
   min-height: 100vh;
+  overflow-x: hidden;
+  background-image: 
+    linear-gradient(rgba(31, 36, 48, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(31, 36, 48, 0.3) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: center center;
 }
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--deep-void); }
+::-webkit-scrollbar-thumb { background: var(--border-stroke); border-radius: 4px; }
