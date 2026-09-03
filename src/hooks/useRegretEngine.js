@@ -1,57 +1,59 @@
 // src/hooks/useRegretEngine.js
-// The Mathematical Regret Formula Engine — exact spec implementation
+// Bulletproof temporal logic — handles 24-hr wrap, negative sleep, multi-day binges
 
 import { useMemo } from 'react';
 
+const STAKES_MAP = { 0: 0.82, 1: 1.0, 2: 1.45 };
+const CLIFF_MAP  = { 0: 0,    1: 3.5, 2: 8.2  };
+
 export function useRegretEngine({ episodes, runtime, wakeUpTime, stakes, cliffhanger, now }) {
   return useMemo(() => {
-    // 1. Total binge in minutes
-    const totalBingeMinutes = episodes * runtime;
+    // ── 1. Window to next alarm (handles overnight wrap) ──────────────────────
+    const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
 
-    // 2. Time remaining until wake-up (in minutes)
-    const [wakeH, wakeM] = wakeUpTime.split(':').map(Number);
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    const wakeMinutes = wakeH * 60 + wakeM;
-    const minutesUntilWake = wakeMinutes > nowMinutes
-      ? wakeMinutes - nowMinutes
-      : (wakeMinutes + 1440) - nowMinutes;
-    const timeRemaining = Math.max(15, minutesUntilWake - totalBingeMinutes - 15); // 15 min fall-asleep overhead
+    const [alarmH, alarmM] = wakeUpTime.split(':').map(Number);
+    let alarmTotalMinutes = alarmH * 60 + alarmM;
 
-    // 3. Sleep Deficit Ratio
-    const sleepDeficitRatio = totalBingeMinutes / (totalBingeMinutes + timeRemaining);
+    // If alarm time is numerically ≤ now, it's tomorrow
+    if (alarmTotalMinutes <= currentTotalMinutes) {
+      alarmTotalMinutes += 24 * 60;
+    }
 
-    // 4. Base Regret
-    const baseRegret = Math.pow(sleepDeficitRatio, 1.35) * 100;
+    const windowMinutes = alarmTotalMinutes - currentTotalMinutes;
+    const bingeMinutes  = episodes * runtime;
+    const sleepMinutes  = windowMinutes - bingeMinutes - 15; // 15 min fall-asleep buffer
 
-    // 5. Stakes Multiplier
-    const stakesMap = { 0: 0.82, 1: 1.00, 2: 1.48 };
-    const stakesMultiplier = stakesMap[stakes] ?? 1.0;
+    // ── 2. Derived Metrics ────────────────────────────────────────────────────
+    const sleepHours  = (Math.max(0, sleepMinutes) / 60);
+    const sleepNeg    = sleepMinutes < 0;
+    const daysOffset  = Math.floor(bingeMinutes / 1440);
+    const finishTime  = new Date(now.getTime() + bingeMinutes * 60000);
 
-    // 6. Cliffhanger Coefficient bonus
-    const cliffhangerBonusMap = { 0: 0, 1: 4.25, 2: 11.8 };
-    const cliffhangerBonus = cliffhangerBonusMap[cliffhanger] ?? 0;
+    // ── 3. Regret Formula ─────────────────────────────────────────────────────
+    let baseRegret;
+    if (sleepMinutes <= 0) {
+      baseRegret = 99.999;
+    } else {
+      const sleepDeficitRatio = bingeMinutes / (bingeMinutes + sleepMinutes);
+      baseRegret = Math.min(98.5, Math.pow(sleepDeficitRatio, 1.25) * 100);
+    }
 
-    // 7. Micro-jitter — deterministic, based on exact minute + runtime
-    const microJitter = (now.getSeconds() % 60 * 0.001) + (runtime % 7) * 0.137;
+    const microJitter = ((runtime * 13 + episodes * 7) % 100) / 750;
+    const stakesMulti = STAKES_MAP[stakes]   ?? 1.0;
+    const cliffBonus  = CLIFF_MAP[cliffhanger] ?? 0;
 
-    // 8. Final Regret
-    const rawRegret = baseRegret * stakesMultiplier + cliffhangerBonus + microJitter;
-    const finalRegret = Math.min(99.999, Math.max(4.105, rawRegret));
+    const finalRegret = sleepMinutes <= 0
+      ? 99.999
+      : Math.min(99.999, Math.max(4.125, baseRegret * stakesMulti + cliffBonus + microJitter));
 
-    // Projected sleep hours
-    const finishTime = new Date(now.getTime() + totalBingeMinutes * 60000);
-    const sleepTime = new Date(finishTime.getTime() + 15 * 60000);
-    let wakeDate = new Date(sleepTime);
-    wakeDate.setHours(wakeH, wakeM, 0, 0);
-    if (wakeDate <= sleepTime) wakeDate.setDate(wakeDate.getDate() + 1);
-    const sleepHours = Math.max(0, (wakeDate - sleepTime) / 3600000);
+    // ── 4. Color & Status ──────────────────────────────────────────────────────
+    let accentColor = '#00F5D4';
+    let statusLabel = 'NOMINAL';
+    if (finalRegret > 50) { accentColor = '#F5A623'; statusLabel = 'ELEVATED';  }
+    if (finalRegret > 76) { accentColor = '#FF6B35'; statusLabel = 'CRITICAL';  }
+    if (finalRegret > 90) { accentColor = '#FF2A54'; statusLabel = 'REDLINE';   }
 
-    // Color thresholds
-    let accentColor = '#00F5D4'; // cyan
-    if (finalRegret > 50) accentColor = '#F5A623'; // amber
-    if (finalRegret > 75) accentColor = '#FF2A54'; // crimson
-
-    // Tomorrow You message tier
+    // ── 5. Tomorrow You transmission tier ────────────────────────────────────
     let txTier = 0;
     if (finalRegret >= 40) txTier = 1;
     if (finalRegret >= 75) txTier = 2;
@@ -60,12 +62,13 @@ export function useRegretEngine({ episodes, runtime, wakeUpTime, stakes, cliffha
     return {
       finalRegret,
       sleepHours,
+      sleepNeg,
+      daysOffset,
       finishTime,
-      sleepTime,
+      bingeMinutes,
       accentColor,
+      statusLabel,
       txTier,
-      totalBingeMinutes,
-      sleepDeficitRatio,
     };
   }, [episodes, runtime, wakeUpTime, stakes, cliffhanger, now]);
 }

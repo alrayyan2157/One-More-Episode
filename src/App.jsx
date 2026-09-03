@@ -1,78 +1,74 @@
-// src/App.jsx — ONE MORE™: Sleep Regret Prediction Engine
-// Full orchestrator — React + Tailwind + Canvas + Web Audio API
+// src/App.jsx — ONE MORE™ v3 — Hypercar Cockpit / Mission Control
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Activity, AlertTriangle, Cpu, Radio, Zap, ChevronUp, ChevronDown, Clock } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Activity, AlertTriangle, ChevronDown, ChevronUp,
+  Clock, Cpu, Radio, Zap,
+} from 'lucide-react';
 import StarfieldCanvas from './components/StarfieldCanvas';
+import TachometerGauge from './components/TachometerGauge';
 import RegretGraph from './components/RegretGraph';
-import OdometerDisplay from './components/OdometerDisplay';
-import RadialGauge from './components/RadialGauge';
 import TransmissionConsole from './components/TransmissionConsole';
 import { useRegretEngine } from './hooks/useRegretEngine';
 import { playClick, playWarpChime, playAlertHum } from './hooks/useAudio';
 
+// ─── helpers ─────────────────────────────────────────────────────────────────
+const pad2 = (n) => String(n).padStart(2, '0');
+const nowHHMM = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+
 const RUNTIME_PRESETS = [
-  { label: 'Anime', value: 24 },
-  { label: 'Sitcom', value: 30 },
-  { label: 'Drama', value: 45 },
-  { label: 'Prestige', value: 58 },
-  { label: 'Scorsese', value: 180 },
+  { label: 'Anime',    v: 24  },
+  { label: 'Sitcom',   v: 30  },
+  { label: 'Drama',    v: 45  },
+  { label: 'Prestige', v: 58  },
+  { label: 'Feature',  v: 90  },
 ];
 
-const EPISODE_PRESETS = [1, 2, 3, 5];
-
-const STAKES_OPTIONS = [
-  { label: 'Casual', sublabel: 'Weekend / Freelancer', icon: '🌙', value: 0 },
-  { label: 'Normal', sublabel: 'Standard Workday', icon: '💼', value: 1 },
-  { label: 'Critical', sublabel: 'Exam · Pitch · 8 AM CEO', icon: '☢️', value: 2 },
+const STAKES_OPTS = [
+  { label: 'Casual',   sub: 'Weekend / Freelancer',        icon: '🌙', v: 0 },
+  { label: 'Normal',   sub: 'Standard Workday',            icon: '💼', v: 1 },
+  { label: 'Critical', sub: 'Exam · Pitch · 8 AM CEO',     icon: '☢️', v: 2 },
 ];
 
-const CLIFFHANGER_OPTIONS = [
-  { label: 'None', value: 0 },
-  { label: 'Mild', value: 1 },
-  { label: 'Catastrophic', sublabel: 'Season Finale', value: 2 },
+const CLIFF_OPTS = [
+  { label: 'None',          v: 0 },
+  { label: 'Mild',          v: 1 },
+  { label: 'Catastrophic',  sub: 'Season Finale', v: 2 },
 ];
 
-function pad2(n) { return String(n).padStart(2, '0'); }
-function nowAsTimeString(d) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
-
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function App() {
-  const [episodes, setEpisodes] = useState(2);
-  const [runtime, setRuntime] = useState(45);
-  const [wakeUpTime, setWakeUpTime] = useState('07:30');
-  const [stakes, setStakes] = useState(1);
+  const [episodes,    setEpisodes]    = useState(2);
+  const [runtime,     setRuntime]     = useState(45);
+  const [wakeUpTime,  setWakeUpTime]  = useState('07:30');
+  const [stakes,      setStakes]      = useState(1);
   const [cliffhanger, setCliffhanger] = useState(0);
-  const [now, setNow] = useState(new Date());
-  const [warpActive, setWarpActive] = useState(false);
-  const [shaking, setShaking] = useState(false);
-  const [strobe, setStrobe] = useState(false);
-  const [remForfeited, setRemForfeited] = useState(41209);
+  const [now,         setNow]         = useState(new Date());
+  const [warpActive,  setWarpActive]  = useState(false);
+  const [shaking,     setShaking]     = useState(false);
+  const [strobe,      setStrobe]      = useState(false);
+  const [remLiquidated, setRemLiquidated] = useState(41209.0);
 
-  // Tick live clock every second
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // Tick global REM forfeited counter (satirical)
   useEffect(() => {
-    const t = setInterval(() => {
-      setRemForfeited(v => +(v + 0.003).toFixed(3));
-    }, 200);
+    const t = setInterval(() => setRemLiquidated(v => +(v + 0.004).toFixed(3)), 200);
     return () => clearInterval(t);
   }, []);
 
-  const { finalRegret, sleepHours, accentColor, txTier, totalBingeMinutes } = useRegretEngine({
-    episodes, runtime, wakeUpTime, stakes, cliffhanger, now,
-  });
+  const {
+    finalRegret, sleepHours, sleepNeg, daysOffset,
+    finishTime, bingeMinutes, accentColor, statusLabel, txTier,
+  } = useRegretEngine({ episodes, runtime, wakeUpTime, stakes, cliffhanger, now });
 
-  // Alert hum when regret > 85
-  const prevRegretRef = useRef(finalRegret);
+  // Alert hum on crossing 85%
+  const prevRegRef = useRef(finalRegret);
   useEffect(() => {
-    if (prevRegretRef.current <= 85 && finalRegret > 85) {
-      playAlertHum();
-    }
-    prevRegretRef.current = finalRegret;
+    if (prevRegRef.current <= 85 && finalRegret > 85) playAlertHum();
+    prevRegRef.current = finalRegret;
   }, [finalRegret]);
 
   const triggerWarp = useCallback(() => {
@@ -80,7 +76,7 @@ export default function App() {
     setTimeout(() => setWarpActive(false), 1400);
   }, []);
 
-  const handleTerribleDecision = useCallback(() => {
+  const handleCTA = useCallback(() => {
     playWarpChime();
     setEpisodes(e => e + 1);
     setShaking(true);
@@ -90,309 +86,481 @@ export default function App() {
     setTimeout(() => setStrobe(false), 700);
   }, [triggerWarp]);
 
-  // Slider pct for CSS gradient
-  const runtimePct = ((runtime - 10) / (170)) * 100;
-
-  // Finish time string
-  const finishDate = new Date(now.getTime() + totalBingeMinutes * 60000);
-  const finishStr = finishDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-  const sleepStr = sleepHours.toFixed(1);
-
-  // Rim color for neon card glow
-  const rimColor = accentColor + '50';
-  const rimGlow = accentColor + '18';
+  const finishStr = finishTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+  const sleepLabel = sleepNeg
+    ? `−${Math.abs(sleepHours).toFixed(1)}h (NEGATIVE)`
+    : `${sleepHours.toFixed(1)}h`;
+  const sleepColor = sleepNeg ? '#FF2A54' : sleepHours < 5 ? '#FF6B35' : sleepHours < 7 ? '#F5A623' : '#00F5D4';
+  const runtimePct  = ((runtime - 10) / 170) * 100;
 
   return (
-    <div className={`relative min-h-screen w-full ${shaking ? 'shaking' : ''}`} style={{ zIndex: 1 }}>
-      {/* Deep space canvas */}
+    <div
+      className={shaking ? 'shaking' : ''}
+      style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden' }}
+    >
+      {/* Canvas background */}
       <StarfieldCanvas warpActive={warpActive} />
 
-      {/* Strobe overlay */}
-      {strobe && <div className="warp-strobe" />}
+      {/* Strobe flash */}
+      {strobe && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 60, pointerEvents: 'none',
+          background: 'radial-gradient(ellipse at center, rgba(255,42,84,0.12) 0%, transparent 70%)',
+          animation: 'regStb 0.12s ease-in-out 5',
+        }}>
+          <style>{`@keyframes regStb{0%,100%{opacity:1}50%{opacity:0}}`}</style>
+        </div>
+      )}
 
-      {/* Content layer */}
-      <div className="relative z-10 flex flex-col min-h-screen px-4 py-4 lg:px-8 lg:py-6 max-w-[1400px] mx-auto">
+      {/* ── Mobile floating HUD ─────────────────────────────────────────────── */}
+      <div className="lg:hidden" style={{
+        position: 'sticky', top: 0, zIndex: 40,
+        background: 'rgba(7,8,11,0.88)',
+        backdropFilter: 'blur(20px)',
+        borderBottom: `1px solid ${accentColor}30`,
+        padding: '0.6rem 1rem',
+        display: 'flex', alignItems: 'center', gap: '1rem',
+      }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: accentColor }}>ONE MORE™</div>
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 900, color: accentColor, lineHeight: 1 }}>
+            {finalRegret.toFixed(3)}%
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>
+            {statusLabel}
+          </div>
+        </div>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: accentColor,
+          boxShadow: `0 0 8px ${accentColor}`, animation: 'blink-led 1.8s ease-in-out infinite' }} />
+      </div>
 
-        {/* ─── HEADER ─── */}
-        <header className="glass-card mb-5 px-5 py-3 flex flex-col md:flex-row items-center gap-3 justify-between">
+      {/* ── Page content ─────────────────────────────────────────────────────── */}
+      <div style={{
+        position: 'relative', zIndex: 10,
+        maxWidth: 1440, margin: '0 auto',
+        padding: '1.25rem 1.5rem',
+        display: 'flex', flexDirection: 'column',
+        height: '100vh', boxSizing: 'border-box',
+      }}>
+
+        {/* ── HEADER ── */}
+        <header style={{
+          display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
+          background: 'rgba(14,17,30,0.55)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255,255,255,0.07)',
+          borderRadius: 12,
+          padding: '0.7rem 1.2rem',
+          marginBottom: '1rem',
+          flexShrink: 0,
+        }}>
           {/* Brand */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="relative">
-              <Activity size={22} color={accentColor} style={{ filter: `drop-shadow(0 0 6px ${accentColor})` }} />
-              <span className="led-blink absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full"
-                style={{ backgroundColor: accentColor, boxShadow: `0 0 6px ${accentColor}` }} />
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Activity size={20} color={accentColor} style={{ filter: `drop-shadow(0 0 5px ${accentColor})` }} />
             <div>
-              <div className="font-mono text-base font-bold tracking-tight" style={{ color: accentColor }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: accentColor, letterSpacing: '-0.02em' }}>
                 ONE MORE™
               </div>
-              <div className="micro-label" style={{ color: accentColor, opacity: 0.6 }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, letterSpacing: '0.16em', color: `${accentColor}80`, textTransform: 'uppercase' }}>
                 // SLEEP TRAJECTORY RADAR
               </div>
             </div>
+            <div style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: accentColor,
+              boxShadow: `0 0 8px ${accentColor}`, animation: 'blink-led 1.8s ease-in-out infinite', marginLeft: 4 }} />
           </div>
 
-          {/* Diagnostic pills */}
-          <div className="flex flex-wrap items-center gap-2 text-center">
-            <span className="px-2 py-1 rounded border text-xs font-mono"
-              style={{ borderColor: `${accentColor}40`, color: accentColor, background: `${accentColor}08` }}>
-              ORBITAL DECAY: ACCELERATING
-            </span>
-            <span className="px-2 py-1 rounded border text-xs font-mono"
-              style={{ borderColor: 'rgba(245,166,35,0.4)', color: '#F5A623', background: 'rgba(245,166,35,0.06)' }}>
-              REM FORFEITED: {remForfeited.toFixed(3)} HRS
-            </span>
-            <span className="px-2 py-1 rounded border text-xs font-mono"
-              style={{ borderColor: 'rgba(255,42,84,0.3)', color: '#FF2A54', background: 'rgba(255,42,84,0.06)' }}>
-              REGRET INDEX: {finalRegret.toFixed(1)}%
-            </span>
+          {/* Status pills */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginLeft: 8 }}>
+            {[
+              { label: 'ORBITAL DECAY: ACCELERATING',       color: accentColor },
+              { label: `REM LIQUIDATED: ${remLiquidated.toFixed(3)} HRS`, color: '#F5A623' },
+              { label: `REGRET INDEX: ${finalRegret.toFixed(1)}%`,       color: finalRegret > 75 ? '#FF2A54' : '#F5A623' },
+            ].map(({ label, color }) => (
+              <span key={label} style={{
+                fontFamily: 'var(--font-mono)', fontSize: 10,
+                padding: '2px 8px', borderRadius: 5,
+                border: `1px solid ${color}40`,
+                color, background: `${color}0c`,
+              }}>{label}</span>
+            ))}
           </div>
 
-          {/* Tagline */}
-          <div className="micro-label text-right hidden lg:block" style={{ maxWidth: 200, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em' }}>
-            "WE DON'T PREVENT BAD DECISIONS.<br />WE QUANTIFY THEM."
+          <div style={{
+            marginLeft: 'auto',
+            fontFamily: 'var(--font-mono)', fontSize: 8,
+            color: 'rgba(255,255,255,0.28)', textAlign: 'right',
+            letterSpacing: '0.1em', textTransform: 'uppercase',
+            lineHeight: 1.5, display: 'none',
+          }} className="hidden lg:block">
+            "We don't prevent bad decisions.<br/>We quantify them."
           </div>
         </header>
 
-        {/* ─── MAIN GRID ─── */}
-        <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* ── TWO-COLUMN COCKPIT ── */}
+        <div style={{
+          flex: 1, display: 'grid',
+          gridTemplateColumns: '1fr',
+          gap: '1rem',
+          minHeight: 0,
+        }} className="lg-cockpit-grid">
 
-          {/* ═══ LEFT COLUMN — CONTROL DECK (5 col) ═══ */}
-          <section className="lg:col-span-5 flex flex-col gap-4">
-            <div
-              className="glass-card neon-rim p-5 flex flex-col gap-5"
-              style={{ '--rim-color': rimColor, '--rim-glow': rimGlow }}
-            >
-              <div className="flex items-center gap-2 pb-3 border-b border-white/5">
-                <Cpu size={14} color={accentColor} />
-                <span className="micro-label" style={{ color: accentColor }}>Control Deck · Input Parameters</span>
-              </div>
+          {/* ═══ LEFT — MISSION INPUTS ═════════════════════════════════════════ */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto' }} className="left-panel">
 
-              {/* ── Episode Count ── */}
-              <div>
-                <label className="micro-label block mb-2">Episode Count</label>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => { setEpisodes(e => Math.max(1, e - 1)); playClick(); }}
-                    className="w-10 h-10 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 flex items-center justify-center text-white transition"
-                  ><ChevronDown size={18} /></button>
-                  <div className="flex-1 text-center font-mono font-bold text-3xl" style={{ color: accentColor }}>
-                    {episodes}
-                  </div>
-                  <button
-                    onClick={() => { setEpisodes(e => e + 1); playClick(); }}
-                    className="w-10 h-10 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 flex items-center justify-center text-white transition"
-                  ><ChevronUp size={18} /></button>
+            {/* Episode count */}
+            <Card accentColor={accentColor} label="Episode Count" icon={<Cpu size={12} color={accentColor} />}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <StepBtn onClick={() => { setEpisodes(e => Math.max(1, e - 1)); playClick(); }}><ChevronDown size={16} /></StepBtn>
+                <div style={{ flex: 1, textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 34, fontWeight: 900, color: accentColor, lineHeight: 1 }}>
+                  {episodes}
                 </div>
-                {/* Quick presets */}
-                <div className="flex gap-2 mt-3">
-                  {EPISODE_PRESETS.map(p => (
-                    <button key={p}
-                      onClick={() => { setEpisodes(p); playClick(); }}
-                      className="flex-1 py-1.5 rounded text-xs font-mono border transition"
-                      style={{
-                        borderColor: episodes === p ? accentColor : 'rgba(255,255,255,0.1)',
-                        color: episodes === p ? accentColor : 'rgba(255,255,255,0.4)',
-                        background: episodes === p ? `${accentColor}12` : 'transparent',
-                      }}
-                    >{p}</button>
-                  ))}
-                  <button
-                    onClick={() => { setEpisodes(99); playClick(); playAlertHum(); }}
-                    className="flex-1 py-1.5 rounded text-xs font-mono border transition"
+                <StepBtn onClick={() => { setEpisodes(e => e + 1); playClick(); }}><ChevronUp size={16} /></StepBtn>
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                {[1, 2, 3, 5].map(p => (
+                  <PresetBtn key={p} active={episodes === p} color={accentColor}
+                    onClick={() => { setEpisodes(p); playClick(); }}>{p}</PresetBtn>
+                ))}
+                <PresetBtn
+                  active={episodes >= 10}
+                  color="#FF2A54"
+                  onClick={() => { setEpisodes(99); playClick(); playAlertHum(); }}
+                  style={{ flex: 1.5 }}
+                >☠ GOD HELP ME</PresetBtn>
+              </div>
+            </Card>
+
+            {/* Runtime */}
+            <Card accentColor={accentColor} label={`Runtime — ${runtime}m`}>
+              <input
+                type="range" min={10} max={180} step={1} value={runtime}
+                onChange={e => setRuntime(+e.target.value)}
+                className="slider-neon"
+                style={{ '--pct': `${runtimePct.toFixed(1)}%`, width: '100%', marginBottom: 10 }}
+              />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {RUNTIME_PRESETS.map(p => (
+                  <PresetBtn key={p.v} active={runtime === p.v} color={accentColor}
+                    onClick={() => { setRuntime(p.v); playClick(); }}>
+                    {p.label} · {p.v}m
+                  </PresetBtn>
+                ))}
+              </div>
+            </Card>
+
+            {/* Time anchors */}
+            <Card accentColor={accentColor} label="Temporal Anchors" icon={<Clock size={12} color={accentColor} />}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <div style={microLabel}>Now</div>
+                  <div style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700,
+                    textAlign: 'center', padding: '8px',
+                    background: 'rgba(0,0,0,0.3)', borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.08)',
+                  }}>
+                    {nowHHMM(now)}
+                    <span style={{ opacity: 0.35, fontSize: 11, marginLeft: 2 }}>:{pad2(now.getSeconds())}</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={microLabel}>Alarm</div>
+                  <input type="time" value={wakeUpTime}
+                    onChange={e => { setWakeUpTime(e.target.value); playClick(); }} />
+                </div>
+              </div>
+            </Card>
+
+            {/* Stakes */}
+            <Card accentColor={accentColor} label="Tomorrow Stakes">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                {STAKES_OPTS.map(o => (
+                  <button key={o.v}
+                    onClick={() => { setStakes(o.v); playClick(); }}
                     style={{
-                      borderColor: episodes >= 10 ? '#FF2A54' : 'rgba(255,255,255,0.1)',
-                      color: episodes >= 10 ? '#FF2A54' : 'rgba(255,255,255,0.4)',
-                      background: episodes >= 10 ? 'rgba(255,42,84,0.1)' : 'transparent',
-                    }}
-                  >☠ GOD HELP ME</button>
-                </div>
+                      background: stakes === o.v ? `${accentColor}12` : 'rgba(255,255,255,0.02)',
+                      border: `1px solid ${stakes === o.v ? accentColor : 'rgba(255,255,255,0.08)'}`,
+                      borderRadius: 10, padding: '10px 6px',
+                      cursor: 'pointer', transition: 'all .18s',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                      boxShadow: stakes === o.v ? `0 0 14px ${accentColor}20` : 'none',
+                    }}>
+                    <span style={{ fontSize: 18 }}>{o.icon}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
+                      color: stakes === o.v ? accentColor : 'rgba(255,255,255,0.55)' }}>{o.label}</span>
+                    <span style={{ ...microLabel, fontSize: 7, color: 'rgba(255,255,255,0.3)' }}>{o.sub}</span>
+                  </button>
+                ))}
               </div>
+            </Card>
 
-              {/* ── Episode Runtime ── */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="micro-label">Episode Runtime</label>
-                  <span className="font-mono text-sm font-bold" style={{ color: accentColor }}>{runtime}m</span>
-                </div>
-                <input
-                  type="range" min="10" max="180" step="1" value={runtime}
-                  onChange={(e) => { setRuntime(Number(e.target.value)); }}
-                  className="slider-neon w-full mb-3"
-                  style={{ '--pct': `${runtimePct.toFixed(1)}%` }}
-                />
-                <div className="flex flex-wrap gap-1.5">
-                  {RUNTIME_PRESETS.map(p => (
-                    <button key={p.value}
-                      onClick={() => { setRuntime(p.value); playClick(); }}
-                      className="px-2 py-1 rounded text-xs font-mono border transition"
-                      style={{
-                        borderColor: runtime === p.value ? accentColor : 'rgba(255,255,255,0.1)',
-                        color: runtime === p.value ? accentColor : 'rgba(255,255,255,0.35)',
-                        background: runtime === p.value ? `${accentColor}10` : 'transparent',
-                      }}
-                    >{p.label} · {p.value}m</button>
-                  ))}
-                </div>
+            {/* Cliffhanger */}
+            <Card accentColor={accentColor} label="Cliffhanger Intensity" icon={<AlertTriangle size={12} color={cliffhanger === 2 ? '#FF2A54' : accentColor} />}>
+              <div style={{ display: 'flex', background: 'rgba(0,0,0,0.28)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, overflow: 'hidden' }}>
+                {CLIFF_OPTS.map((o, i) => (
+                  <button key={o.v}
+                    onClick={() => { setCliffhanger(o.v); playClick(); if (o.v === 2) playAlertHum(); }}
+                    style={{
+                      flex: 1, padding: '10px 4px',
+                      background: cliffhanger === o.v
+                        ? (o.v === 2 ? 'rgba(255,42,84,0.12)' : `${accentColor}10`)
+                        : 'transparent',
+                      border: 'none',
+                      borderRight: i < CLIFF_OPTS.length - 1 ? '1px solid rgba(255,255,255,0.07)' : 'none',
+                      cursor: 'pointer', transition: 'all .18s',
+                      fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em',
+                      color: cliffhanger === o.v
+                        ? (o.v === 2 ? '#FF2A54' : accentColor)
+                        : 'rgba(255,255,255,0.35)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                    }}>
+                    <span>{o.label}</span>
+                    {o.sub && <span style={{ fontSize: 7, opacity: 0.6 }}>{o.sub}</span>}
+                  </button>
+                ))}
               </div>
+              {cliffhanger === 2 && (
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FF2A54', marginTop: 6,
+                  display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <AlertTriangle size={9} /> WARNING: CATASTROPHIC NARRATIVE HOOK DETECTED
+                </p>
+              )}
+            </Card>
 
-              {/* ── Time Anchors ── */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="micro-label block mb-2">
-                    <Clock size={10} className="inline mr-1" />Temporal Anchor (NOW)
-                  </label>
-                  <div className="font-mono text-lg font-bold text-center py-2.5 rounded-lg border border-white/10 bg-black/30">
-                    {nowAsTimeString(now)}
-                    <span className="text-xs opacity-40 ml-1">:{pad2(now.getSeconds())}</span>
-                  </div>
-                </div>
-                <div>
-                  <label className="micro-label block mb-2">
-                    <AlertTriangle size={10} className="inline mr-1" />Alarm Ring Time
-                  </label>
-                  <input
-                    type="time" value={wakeUpTime}
-                    onChange={(e) => { setWakeUpTime(e.target.value); playClick(); }}
-                  />
-                </div>
-              </div>
-
-              {/* ── Tomorrow Stakes ── */}
-              <div>
-                <label className="micro-label block mb-2">Next Day Stakes</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {STAKES_OPTIONS.map(opt => (
-                    <button key={opt.value}
-                      onClick={() => { setStakes(opt.value); playClick(); }}
-                      className="flex flex-col items-center p-2.5 rounded-lg border transition text-center"
-                      style={{
-                        borderColor: stakes === opt.value ? accentColor : 'rgba(255,255,255,0.08)',
-                        background: stakes === opt.value ? `${accentColor}10` : 'rgba(255,255,255,0.02)',
-                        boxShadow: stakes === opt.value ? `0 0 12px ${accentColor}20` : 'none',
-                      }}
-                    >
-                      <span className="text-xl mb-1">{opt.icon}</span>
-                      <span className="font-mono text-xs font-bold" style={{ color: stakes === opt.value ? accentColor : 'rgba(255,255,255,0.6)' }}>
-                        {opt.label}
-                      </span>
-                      <span className="micro-label mt-0.5" style={{ fontSize: '7px' }}>{opt.sublabel}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* ── Cliffhanger ── */}
-              <div>
-                <label className="micro-label block mb-2">Cliffhanger Intensity</label>
-                <div className="flex rounded-lg border border-white/10 overflow-hidden"
-                  style={{ background: 'rgba(0,0,0,0.25)' }}>
-                  {CLIFFHANGER_OPTIONS.map((opt, i) => (
-                    <button key={opt.value}
-                      onClick={() => { setCliffhanger(opt.value); playClick(); if (opt.value === 2) playAlertHum(); }}
-                      className={`seg-btn flex-1 flex flex-col gap-0.5 ${cliffhanger === opt.value ? 'active' : ''}`}
-                      style={cliffhanger === opt.value ? {
-                        color: opt.value === 2 ? '#FF2A54' : accentColor,
-                        background: opt.value === 2 ? 'rgba(255,42,84,0.1)' : `${accentColor}10`,
-                      } : {}}
-                    >
-                      <span>{opt.label}</span>
-                      {opt.sublabel && <span style={{ fontSize: '7px', opacity: 0.7 }}>{opt.sublabel}</span>}
-                    </button>
-                  ))}
-                </div>
-                {cliffhanger === 2 && (
-                  <p className="micro-label mt-1.5 flex items-center gap-1" style={{ color: '#FF2A54' }}>
-                    <AlertTriangle size={9} /> WARNING: CATASTROPHIC NARRATIVE HOOK DETECTED
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Projected stats mini-bar */}
-            <div className="glass-card px-4 py-3 grid grid-cols-3 gap-2 text-center">
+            {/* Stat strip */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(3,1fr)',
+              gap: 6,
+            }}>
               {[
-                { label: 'Binge Duration', value: `${totalBingeMinutes}m`, color: accentColor },
-                { label: 'Finish Time', value: finishStr, color: '#F5A623' },
-                { label: 'Sleep Projected', value: `${sleepStr}h`, color: sleepHours < 5 ? '#FF2A54' : sleepHours < 7 ? '#F5A623' : '#00F5D4' },
+                { label: 'Binge',   value: `${bingeMinutes}m`,  color: accentColor },
+                { label: 'Finish',  value: finishStr,            color: '#F5A623' },
+                { label: 'Sleep',   value: sleepLabel,           color: sleepColor },
               ].map(({ label, value, color }) => (
-                <div key={label}>
-                  <div className="micro-label mb-1">{label}</div>
-                  <div className="font-mono font-bold text-base" style={{ color }}>{value}</div>
+                <div key={label} style={{
+                  background: 'rgba(14,17,30,0.55)', backdropFilter: 'blur(16px)',
+                  border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10,
+                  padding: '10px 8px', textAlign: 'center',
+                }}>
+                  <div style={microLabel}>{label}</div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color, marginTop: 2 }}>{value}</div>
                 </div>
               ))}
             </div>
-          </section>
 
-          {/* ═══ RIGHT COLUMN — MISSION CONTROL (7 col) ═══ */}
-          <section className="lg:col-span-7 flex flex-col gap-4">
+            {/* Multi-day warning */}
+            {(daysOffset > 0 || sleepNeg) && (
+              <div style={{
+                background: 'rgba(255,42,84,0.1)', border: '1px solid rgba(255,42,84,0.35)',
+                borderRadius: 8, padding: '8px 12px',
+                fontFamily: 'var(--font-mono)', fontSize: 10, color: '#FF2A54',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <AlertTriangle size={11} />
+                {sleepNeg
+                  ? `SLEEP DEBT: ${Math.abs(sleepHours).toFixed(1)}h IN DEFICIT — YOU WILL NOT SLEEP.`
+                  : `DAY+${daysOffset} BLEED — BINGE CROSSES MIDNIGHT BOUNDARY.`}
+              </div>
+            )}
+          </div>
 
-            {/* ── Hero Regret Score ── */}
-            <div className="glass-card p-5 flex flex-col items-center"
-              style={{ borderColor: `${accentColor}25`, boxShadow: `0 0 40px ${accentColor}08` }}>
-              <div className="flex items-center gap-2 mb-1 self-stretch border-b border-white/5 pb-3">
-                <Radio size={13} color={accentColor} />
-                <span className="micro-label" style={{ color: accentColor }}>Regret Score Matrix · Live Feed</span>
-                <span className="ml-auto font-mono text-xs px-2 py-0.5 rounded"
-                  style={{ background: `${accentColor}18`, color: accentColor, border: `1px solid ${accentColor}30` }}>
-                  LIVE
+          {/* ═══ RIGHT — TELEMETRY HUD ══════════════════════════════════════════ */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflow: 'hidden' }} className="right-panel">
+
+            {/* Tachometer hero */}
+            <div style={{
+              background: 'rgba(14,17,30,0.6)', backdropFilter: 'blur(24px)',
+              border: `1px solid ${accentColor}25`,
+              borderRadius: 16,
+              padding: '1rem 1.25rem 0.5rem',
+              boxShadow: `0 0 40px ${accentColor}0a`,
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              flexShrink: 0,
+            }}>
+              {/* Panel header */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                paddingBottom: '0.5rem', marginBottom: '0.5rem',
+                width: '100%',
+              }}>
+                <Radio size={12} color={accentColor} />
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.15em', color: `${accentColor}99`, textTransform: 'uppercase' }}>
+                  Regret Tachometer · Live Telemetry
                 </span>
+                <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 9, padding: '2px 7px', borderRadius: 4,
+                  background: `${accentColor}18`, color: accentColor, border: `1px solid ${accentColor}30` }}>LIVE</span>
               </div>
 
-              <div className="relative flex items-center justify-center my-2">
-                <RadialGauge value={finalRegret} accentColor={accentColor} />
-                <div className="absolute flex flex-col items-center">
-                  <OdometerDisplay value={finalRegret} accentColor={accentColor} />
-                  <div className="micro-label mt-2 tracking-widest" style={{ color: accentColor }}>
-                    PROJECTED REMORSE FACTOR
-                  </div>
-                  <div className="micro-label mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                    {finalRegret < 50 ? '● NOMINAL' : finalRegret < 75 ? '▲ ELEVATED' : '⚠ CRITICAL'}
-                  </div>
-                </div>
+              <TachometerGauge regret={finalRegret} accentColor={accentColor} statusLabel={statusLabel} />
+
+              {/* Big decimal readout under needle */}
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 38, fontWeight: 900, color: accentColor, letterSpacing: '-0.04em', lineHeight: 1, marginTop: '-0.5rem' }}>
+                {finalRegret.toFixed(3)}<span style={{ fontSize: 20, opacity: 0.5 }}>%</span>
+              </div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8.5, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', marginTop: 4, marginBottom: 4 }}>
+                {finalRegret >= 88 ? 'REDLINE STATE: CRITICAL COGNITIVE BLOWOUT' : `REGRET STATUS: ${statusLabel}`}
               </div>
             </div>
 
-            {/* ── Bezier Graph ── */}
-            <div className="glass-card p-5">
+            {/* Graph */}
+            <div style={{
+              background: 'rgba(14,17,30,0.55)', backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14,
+              padding: '1rem 1.25rem',
+              flex: 1, minHeight: 0,
+            }}>
               <RegretGraph episodes={episodes} finalRegret={finalRegret} />
             </div>
 
-            {/* ── Transmission Console ── */}
-            <div className="glass-card p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Zap size={13} color={accentColor} />
-                <span className="micro-label" style={{ color: accentColor }}>
+            {/* Transmission */}
+            <div style={{
+              background: 'rgba(14,17,30,0.55)', backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14,
+              padding: '0.85rem 1.1rem',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <Zap size={12} color={accentColor} />
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', color: `${accentColor}99`, textTransform: 'uppercase' }}>
                   Tomorrow You · Encrypted Com-Link
                 </span>
-                <span className="ml-auto micro-label flex items-center gap-1" style={{ color: accentColor, opacity: 0.6 }}>
-                  <span className="w-1.5 h-1.5 rounded-full led-blink" style={{ backgroundColor: accentColor, display: 'inline-block' }}></span>
+                <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4,
+                  fontFamily: 'var(--font-mono)', fontSize: 8, color: `${accentColor}80` }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: accentColor,
+                    display: 'inline-block', animation: 'blink-led 1.8s ease-in-out infinite' }} />
                   DECRYPTING
                 </span>
               </div>
-              <TransmissionConsole txTier={txTier} now={now} accentColor={accentColor} />
+              <TransmissionConsole txTier={txTier} accentColor={accentColor} now={now} />
             </div>
 
-            {/* ── CTA ── */}
+            {/* CTA */}
             <button
-              onClick={handleTerribleDecision}
-              className="cta-btn w-full py-5 rounded-xl text-base"
+              onClick={handleCTA}
+              style={{
+                width: '100%', padding: '1.1rem 1rem',
+                background: 'linear-gradient(135deg, rgba(255,42,84,0.14), rgba(122,0,22,0.18))',
+                border: `1px solid #FF2A54`,
+                borderRadius: 12, cursor: 'pointer',
+                fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700,
+                color: '#FF2A54', letterSpacing: '0.06em', textTransform: 'uppercase',
+                position: 'relative', overflow: 'hidden',
+                transition: 'all .22s', flexShrink: 0,
+                boxShadow: '0 0 0 0 rgba(255,42,84,0)',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,42,84,0.3), rgba(122,0,22,0.36))';
+                e.currentTarget.style.color = '#fff';
+                e.currentTarget.style.boxShadow = '0 0 30px rgba(255,42,84,0.4)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,42,84,0.14), rgba(122,0,22,0.18))';
+                e.currentTarget.style.color = '#FF2A54';
+                e.currentTarget.style.boxShadow = '0 0 0 0 rgba(255,42,84,0)';
+              }}
             >
-              <div className="scanline-overlay" />
-              <div className="pulse-ring-outer rounded-xl" />
-              <span className="relative z-10 flex items-center justify-center gap-2">
-                <Zap size={18} className="shrink-0" />
+              {/* Scanlines */}
+              <div style={{
+                position: 'absolute', inset: 0,
+                background: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.025) 2px,rgba(255,255,255,0.025) 4px)',
+                pointerEvents: 'none',
+              }}/>
+              {/* Pulse ring */}
+              <div style={{
+                position: 'absolute', inset: -2, border: '2px solid #FF2A54',
+                borderRadius: 13, pointerEvents: 'none',
+                animation: 'ctaPulse 2s ease-in-out infinite',
+              }}/>
+              <style>{`@keyframes ctaPulse{0%,100%{opacity:.25;transform:scale(1)}50%{opacity:.7;transform:scale(1.01)}}`}</style>
+              <span style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <Zap size={16} />
                 MAKE A TERRIBLE DECISION: WATCH ONE MORE
               </span>
             </button>
-          </section>
-        </main>
+          </div>
+        </div>
 
         {/* Footer */}
-        <footer className="mt-4 text-center micro-label" style={{ color: 'rgba(255,255,255,0.15)' }}>
-          ONE MORE™ v2.0.1 · SLEEP TRAJECTORY RADAR · All data is satirical and mathematically rigorous · No actual astronauts were harmed
-        </footer>
+        <div style={{
+          textAlign: 'center', marginTop: '0.5rem', flexShrink: 0,
+          fontFamily: 'var(--font-mono)', fontSize: 8.5,
+          color: 'rgba(255,255,255,0.15)', letterSpacing: '0.1em',
+        }}>
+          ONE MORE™ v3.0 · SLEEP TRAJECTORY RADAR · All data is satirical and mathematically rigorous
+        </div>
       </div>
+
+      <style>{`
+        @keyframes blink-led{0%,90%,100%{opacity:1}95%{opacity:.1}}
+        .shaking{animation:screen-shake .4s cubic-bezier(.36,.07,.19,.97) both}
+        @keyframes screen-shake{
+          0%,100%{transform:translate(0,0)}
+          10%,30%,50%,70%,90%{transform:translate(-5px,-2px) rotate(-.4deg)}
+          20%,40%,60%,80%{transform:translate(5px,2px) rotate(.4deg)}
+        }
+        @media(min-width:1024px){
+          .lg-cockpit-grid{grid-template-columns:5fr 7fr !important}
+          .left-panel{overflow-y:auto;padding-right:4px}
+          .right-panel{overflow:hidden}
+        }
+      `}</style>
     </div>
+  );
+}
+
+// ─── Sub-components ────────────────────────────────────────────────────────────
+const microLabel = {
+  fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.15em',
+  textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 4,
+};
+
+function Card({ children, accentColor, label, icon }) {
+  return (
+    <div style={{
+      background: 'rgba(14,17,30,0.55)', backdropFilter: 'blur(20px)',
+      border: '1px solid rgba(255,255,255,0.07)',
+      borderRadius: 14, padding: '0.9rem 1.1rem',
+      boxShadow: `0 0 0 1px rgba(0,0,0,0), inset 0 1px 0 rgba(255,255,255,0.03)`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
+        borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 8 }}>
+        {icon}
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em',
+          textTransform: 'uppercase', color: `${accentColor}80` }}>{label}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function StepBtn({ children, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      width: 38, height: 38, borderRadius: 8,
+      background: 'rgba(255,255,255,0.05)',
+      border: '1px solid rgba(255,255,255,0.1)',
+      color: '#fff', cursor: 'pointer', display: 'flex',
+      alignItems: 'center', justifyContent: 'center',
+      transition: 'background .15s',
+    }}
+      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+    >{children}</button>
+  );
+}
+
+function PresetBtn({ children, active, color = '#00F5D4', onClick, style: extraStyle }) {
+  return (
+    <button onClick={onClick} style={{
+      flex: 1, padding: '5px 4px', borderRadius: 6,
+      background: active ? `${color}12` : 'transparent',
+      border: `1px solid ${active ? color : 'rgba(255,255,255,0.1)'}`,
+      color: active ? color : 'rgba(255,255,255,0.4)',
+      fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer',
+      transition: 'all .16s', ...extraStyle,
+    }}
+      onMouseEnter={e => e.currentTarget.style.borderColor = color}
+      onMouseLeave={e => e.currentTarget.style.borderColor = active ? color : 'rgba(255,255,255,0.1)'}
+    >{children}</button>
   );
 }
